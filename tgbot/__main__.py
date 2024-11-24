@@ -12,6 +12,8 @@ from aiogram.fsm.storage.memory import MemoryStorage
 from tgbot import handlers
 from tgbot.data import config
 
+import sqlite3
+
 
 def setup_logging():
     log_level = logging.INFO
@@ -42,6 +44,27 @@ async def aiogram_on_shutdown_polling(dispatcher: Dispatcher, bot: Bot) -> None:
     await dispatcher.storage.close()
 
 
+def create_db():
+    try:
+        conn = sqlite3.connect('links.db')
+        cursor = conn.cursor()
+        cursor.execute('''
+        CREATE TABLE IF NOT EXISTS links (
+            id INTEGER PRIMARY KEY AUTOINCREMENT,
+            url TEXT NOT NULL,
+            title TEXT,
+            category TEXT,
+            priority INTEGER,
+            source TEXT
+        )''')
+        conn.commit()
+        conn.close()
+    except sqlite3.Error as e:
+        logging.error(f"Database error: {e}")
+    except Exception as e:
+        logging.error(f"General error: {e}")
+
+
 async def main():
     setup_logging()
     session = AiohttpSession(
@@ -59,7 +82,7 @@ async def main():
     dp = Dispatcher(
         storage=storage,
     )
-
+    create_db()
     dp.startup.register(aiogram_on_startup_polling)
     dp.shutdown.register(aiogram_on_shutdown_polling)
 
