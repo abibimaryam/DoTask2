@@ -9,6 +9,10 @@ from aiogram import Bot, Dispatcher, types
 from aiogram.fsm.context import FSMContext
 from aiogram.fsm.state import State, StatesGroup
 
+from sqlalchemy import create_engine, Column, Integer, String
+from sqlalchemy.ext.declarative import declarative_base
+from sqlalchemy.orm import sessionmaker
+
 
 
 saved_token = None
@@ -57,16 +61,68 @@ def get_source_from_url(url: str) -> str:
 
 
 # Сохранение ссылки в базу данных SQLite
-def save_link_to_db(url: str, title: str, category: str, priority: int,source:str):
-    conn = sqlite3.connect('links.db')
-    cursor = conn.cursor()
+# def save_link_to_db(url: str, title: str, category: str, priority: int,source:str):
+#     conn = sqlite3.connect('links.db')
+#     cursor = conn.cursor()
     
-    cursor.execute('''
-    INSERT INTO links (url, title, category, priority,source)
-    VALUES (?, ?, ?, ?,?)''', (url, title, category, priority,source))
+#     cursor.execute('''
+#     INSERT INTO links (url, title, category, priority,source)
+#     VALUES (?, ?, ?, ?,?)''', (url, title, category, priority,source))
     
-    conn.commit()
-    conn.close()
+#     conn.commit()
+#     conn.close()
+
+DATABASE_URL = "sqlite:///links.db"
+engine = create_engine(DATABASE_URL)
+Base = declarative_base()
+SessionLocal = sessionmaker(autocommit=False, autoflush=False, bind=engine)
+
+# Модель базы данных
+class Link(Base):
+    __tablename__ = "links"
+
+    id = Column(Integer, primary_key=True, index=True)
+    url = Column(String, unique=True, nullable=False)
+    title = Column(String, nullable=False)
+    category = Column(String, nullable=False)
+    priority = Column(Integer, nullable=False)
+    source = Column(String, nullable=False)
+
+# Создание таблиц
+Base.metadata.create_all(bind=engine)
+
+# Функции для работы с базой данных через SQLAlchemy
+def save_link_to_db(url: str, title: str, category: str, priority: int, source: str):
+    db = SessionLocal()
+    try:
+        new_link = Link(url=url, title=title, category=category, priority=priority, source=source)
+        db.add(new_link)
+        db.commit()
+        print("Ссылка сохранена в базе данных.")
+    except Exception as e:
+        db.rollback()
+        print(f"Ошибка при сохранении ссылки: {e}")
+    finally:
+        db.close()
+
+def clear_all_links_from_db():
+    db = SessionLocal()
+    try:
+        db.query(Link).delete()
+        db.commit()
+        print("Все ссылки удалены из базы данных.")
+    except Exception as e:
+        db.rollback()
+        print(f"Ошибка при очистке базы данных: {e}")
+    finally:
+        db.close()
+
+def get_all_links_from_db():
+    db = SessionLocal()
+    try:
+        return db.query(Link).all()
+    finally:
+        db.close()
 
 class Form(StatesGroup):
     token = State()  # State for Notion token
@@ -140,12 +196,12 @@ def save_link_to_notion(url: str, title: str, category: str, priority: int, sour
 
 
 
-def clear_all_links_from_db():
-    conn = sqlite3.connect('links.db')
-    cursor = conn.cursor()
-    cursor.execute("DELETE FROM links")
-    conn.commit()
-    conn.close()
+# def clear_all_links_from_db():
+#     conn = sqlite3.connect('links.db')
+#     cursor = conn.cursor()
+#     cursor.execute("DELETE FROM links")
+#     conn.commit()
+#     conn.close()
 
 def clear_notion_database(database_id: str):
     notion = Client(auth=saved_token)
